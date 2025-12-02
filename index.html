@@ -20,16 +20,20 @@
         #lantern-canvas {
             position: absolute;
             top: 0; left: 0; width: 100%; height: 100%; z-index: 1;
+            transition: filter 1s ease; /* Smooth transition for grey effect */
+        }
+
+        /* NEW CLASS: GREY OUT BACKGROUND */
+        .background-dim {
+            filter: grayscale(80%) brightness(0.4);
         }
 
         /* --- SCREEN SHAKE --- */
         .rumble-active { animation: rumble 0.1s infinite; }
         @keyframes rumble {
             0% { transform: translate(0, 0); }
-            25% { transform: translate(-2px, 2px); }
             50% { transform: translate(2px, -2px); }
-            75% { transform: translate(-2px, -2px); }
-            100% { transform: translate(2px, 2px); }
+            100% { transform: translate(-2px, 2px); }
         }
 
         /* --- SPEED LINES --- */
@@ -56,7 +60,7 @@
         /* --- MAIN TITLE --- */
         #main-title {
             position: absolute;
-            top: 45%; /* Moved slightly lower */
+            top: 45%; 
             left: 50%;
             transform: translate(-50%, -50%);
             text-align: center;
@@ -72,7 +76,7 @@
         }
         .title-chinese {
             font-family: 'Ma Shan Zheng', cursive;
-            font-size: 80px; /* Slightly smaller to fit better */
+            font-size: 80px; 
             color: #ffcc00;   
             margin: 0;
             text-shadow: 0 0 40px rgba(255, 100, 0, 0.8);
@@ -90,7 +94,7 @@
         /* --- BUTTON --- */
         #controls {
             position: absolute;
-            bottom: 12%; 
+            bottom: 15%; 
             left: 50%;
             transform: translateX(-50%);
             z-index: 10;
@@ -111,7 +115,6 @@
             animation: heartbeat 1.5s infinite;
         }
         button:hover { transform: scale(1.1); box-shadow: 0 0 60px #ffcc00; }
-        button:active { transform: scale(0.95); }
         @keyframes heartbeat {
             0% { transform: scale(1); }
             50% { transform: scale(1.05); box-shadow: 0 0 40px rgba(255, 204, 0, 0.8); }
@@ -129,8 +132,8 @@
             z-index: 20;
             opacity: 0;
             pointer-events: none;
-            background: rgba(0,0,0,0.85); 
-            backdrop-filter: blur(5px);
+            /* Changed to more transparent so you can see grey lanterns */
+            background: rgba(0,0,0,0.4); 
             transition: opacity 0.2s;
         }
         #winner-screen.visible { opacity: 1; pointer-events: auto; }
@@ -149,25 +152,22 @@
         }
         @keyframes rotateRays { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 
-        /* --- WINNER TEXT ADJUSTMENTS --- */
         .winner-label {
             font-family: 'Ma Shan Zheng', cursive;
-            font-size: 80px; /* Reduced from 100px */
+            font-size: 80px; 
             color: #ffcc00;
-            margin-bottom: 10px; /* Less gap */
             text-shadow: 0 0 40px #ff0000;
             letter-spacing: 10px;
-            margin-top: 50px; /* Push down slightly */
+            margin-top: 20px;
         }
         .winner-number {
-            font-size: 180px; /* Reduced from 220px to fit screen */
+            font-size: 180px; 
             font-weight: 900;
             color: #fff;
             text-shadow: 0 0 10px #ffcc00, 0 0 30px #ffcc00, 0 0 80px #ff0000;
             position: relative;
             z-index: 2;
-            line-height: 1.1; /* Fix for cutting off top */
-            padding-bottom: 10px;
+            line-height: 1.2; 
         }
         .number-pop { animation: popIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
         @keyframes popIn {
@@ -181,20 +181,22 @@
             transition: opacity 0.1s; mix-blend-mode: overlay;
         }
 
-        /* --- SCRAMBLER TEXT ADJUSTMENTS --- */
+        /* --- FIXED: SCRAMBLER TEXT POSITION --- */
         #scramble-container {
             position: absolute;
-            top: 50%; /* MOVED TO DEAD CENTER */
+            /* Moved to 55% Top to prevent cutting off */
+            top: 55%; 
             left: 50%;
             transform: translate(-50%, -50%);
-            font-size: 160px; /* Slightly adjusted */
+            /* Reduced font size slightly so it fits better */
+            font-size: 140px; 
             font-weight: 900;
             color: rgba(255, 255, 255, 0.3);
             z-index: 15;
             pointer-events: none;
             display: none;
             font-family: 'Cinzel', serif;
-            line-height: 1; /* Prevents vertical clipping */
+            line-height: 1; 
         }
         
         .shockwave {
@@ -219,6 +221,7 @@
     <div id="flash"></div>
     <div id="speed-lines"></div> 
     <div class="shockwave" id="shockwave"></div> 
+    
     <canvas id="lantern-canvas"></canvas>
 
     <div id="scramble-container">000</div>
@@ -380,6 +383,10 @@
 
         currentState = 'IDLE'; 
         document.getElementById('speed-lines').classList.remove('warp-active');
+        
+        // TRIGGER GREY BACKGROUND
+        document.getElementById('lantern-canvas').classList.add('background-dim');
+
         shockwaveEl.classList.remove('shockwave-active');
         void shockwaveEl.offsetWidth; shockwaveEl.classList.add('shockwave-active');
 
@@ -404,6 +411,10 @@
         const title = document.getElementById('main-title');
         title.style.opacity = '1';
         title.style.transform = 'translate(-50%, -50%) scale(1)';
+        
+        // REMOVE GREY BACKGROUND
+        document.getElementById('lantern-canvas').classList.remove('background-dim');
+        
         currentState = 'IDLE';
     }
 </script>
