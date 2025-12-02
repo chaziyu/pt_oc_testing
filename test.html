@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>马大灯笼节 - 幸运抽奖</title>
+    <style>
+        /* Importing Calligraphy Chinese Font & English Serif */
+        @import url('https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&family=Cinzel:wght@700&display=swap');
+
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: radial-gradient(circle at bottom, #2c0e0e 0%, #000000 100%);
+            font-family: 'Cinzel', serif; 
+            color: white;
+            user-select: none;
+        }
+
+        /* The Canvas for the background animation */
+        #lantern-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+
+        /* =========================================
+           UPDATED: THE MAIN TITLE BOX
+           ========================================= */
+        #main-title {
+            position: absolute;
+            top: 40%; 
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            z-index: 5;
+            transition: opacity 0.5s ease-out;
+            pointer-events: none;
+
+            /* NEW: Grey Semi-Transparent Box Styling */
+            background: rgba(40, 40, 40, 0.6); /* Dark Grey Transparent */
+            backdrop-filter: blur(8px);        /* Blurs the lanterns behind it */
+            padding: 40px 80px;                /* Space around text */
+            border-radius: 50px;               /* Rounded corners */
+            border: 1px solid rgba(255, 255, 255, 0.1); /* Subtle border */
+            box-shadow: 0 10px 40px rgba(0,0,0,0.5);    /* Drop shadow */
+        }
+
+        .title-chinese {
+            font-family: 'Ma Shan Zheng', cursive;
+            font-size: 90px; 
+            color: #ffcc00;   
+            margin: 0;
+            text-shadow: 0 0 30px rgba(255, 70, 70, 0.8), 2px 2px 0px #8c0a0a;
+            letter-spacing: 10px;
+            /* Animation applied to text inside the box */
+            animation: breathe 3s infinite ease-in-out;
+        }
+
+        .title-english {
+            font-family: 'Cinzel', serif;
+            font-size: 28px;
+            color: #ff9e9e; 
+            letter-spacing: 8px;
+            margin-top: 15px;
+            text-transform: uppercase;
+            text-shadow: 0 0 10px rgba(255, 0, 0, 0.5);
+            animation: breathe 3s infinite ease-in-out;
+            animation-delay: 0.5s; 
+        }
+
+        @keyframes breathe {
+            0%, 100% { transform: scale(1); filter: brightness(1); }
+            50% { transform: scale(1.02); filter: brightness(1.2); }
+        }
+
+        /* The Control Button Area */
+        #controls {
+            position: absolute;
+            bottom: 12%; /* Adjusted position */
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10;
+            text-align: center;
+            transition: opacity 0.5s ease;
+        }
+
+        button {
+            background: linear-gradient(to bottom, #d92027, #8c0a0a);
+            border: 2px solid #ffcc00;
+            padding: 15px 60px;
+            font-size: 30px;
+            font-family: 'Ma Shan Zheng', cursive;
+            color: #ffcc00;
+            cursor: pointer;
+            border-radius: 50px;
+            box-shadow: 0 0 30px rgba(255, 77, 77, 0.4);
+            transition: all 0.3s ease;
+            outline: none;
+        }
+
+        button:hover {
+            transform: scale(1.1);
+            box-shadow: 0 0 50px rgba(255, 204, 0, 0.8);
+            background: linear-gradient(to bottom, #ff4d4d, #b30000);
+        }
+
+        /* The Winner Overlay */
+        #winner-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 20;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.8s ease-in-out;
+            background: rgba(0,0,0,0.9); 
+            backdrop-filter: blur(8px);
+        }
+
+        #winner-screen.visible {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .winner-label {
+            font-family: 'Ma Shan Zheng', cursive;
+            font-size: 50px;
+            color: #ffcc00;
+            margin-bottom: 20px;
+            text-shadow: 0 0 20px #ff0000;
+        }
+
+        .winner-number {
+            font-family: 'Cinzel', serif;
+            font-size: 180px;
+            font-weight: 900;
+            color: #fff;
+            background: -webkit-linear-gradient(#fff, #ffcc00);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-shadow: 0 0 50px rgba(255, 204, 0, 0.6);
+        }
+
+        /* The Flash Effect */
+        #flash {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #ffcc00;
+            z-index: 100;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 1s ease-out; 
+            mix-blend-mode: hard-light;
+        }
+
+        #sound-status {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            color: rgba(255,255,255,0.3);
+            font-size: 12px;
+            z-index: 5;
+        }
+
+    </style>
+</head>
+<body>
+
+    <audio id="sfx-storm" src="storm.mp3" preload="auto"></audio>
+    <audio id="sfx-boom" src="boom.mp3" preload="auto"></audio>
+
+    <div id="flash"></div>
+    <canvas id="lantern-canvas"></canvas>
+    <div id="sound-status">需要音频: storm.mp3 & boom.mp3</div>
+
+    <div id="main-title">
+        <h1 class="title-chinese">马大灯笼节</h1>
+        <div class="title-english">PESTA TANGLUNG UM</div>
+        <div style="margin-top:15px; font-size: 16px; color: #ccc; letter-spacing: 3px; font-weight: normal;">LUCKY DRAW EVENT</div>
+    </div>
+
+    <div id="controls">
+        <button id="ignite-btn" onclick="startDraw()">开始 (Start)</button>
+    </div>
+
+    <div id="winner-screen">
+        <div class="winner-label">✨ 天选幸运儿 (The Chosen One) ✨</div>
+        <div class="winner-number" id="result-text">---</div>
+        <button style="margin-top: 50px; font-size: 24px; padding: 10px 40px;" onclick="resetDraw()">下一位 (Next)</button>
+    </div>
+
+<script>
+    // ==========================================
+    // CONFIGURATION
+    // ==========================================
+    const TOTAL_PARTICIPANTS = 1500; 
+
+    // ==========================================
+    // VISUAL SETUP
+    // ==========================================
+    const canvas = document.getElementById('lantern-canvas');
+    const ctx = canvas.getContext('2d');
+    
+    let width, height;
+    let particles = [];
+    const VISUAL_COUNT = 120; 
+    let animationId;
+    let currentState = 'IDLE'; 
+
+    function resize() {
+        width = canvas.width = window.innerWidth;
+        height = canvas.height = window.innerHeight;
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    class Lantern {
+        constructor() {
+            this.reset();
+            this.y = Math.random() * height; 
+        }
+
+        reset() {
+            this.x = Math.random() * width;
+            this.y = height + Math.random() * 200;
+            
+            // Large size
+            this.baseSize = Math.random() * 25 + 20; 
+            
+            this.baseSpeed = Math.random() * 1.5 + 0.5;
+            this.speed = this.baseSpeed;
+            
+            // Warm colors
+            const hue = Math.floor(Math.random() * 40); 
+            this.color = `hsla(${hue}, 90%, 50%, 0.9)`;
+            
+            this.wobble = Math.random() * Math.PI * 2;
+            this.wobbleSpeed = Math.random() * 0.02 + 0.01;
+        }
+
+        update() {
+            let targetSpeed = this.baseSpeed;
+            
+            if (currentState === 'STORM') {
+                targetSpeed = this.baseSpeed * 25; 
+                if (this.speed < targetSpeed) this.speed += 0.8;
+            } else {
+                if (this.speed > this.baseSpeed) this.speed *= 0.95;
+            }
+
+            this.y -= this.speed;
+            this.x += Math.sin(this.wobble) * 0.5; 
+            this.wobble += this.wobbleSpeed;
+
+            if (this.y < -100) {
+                this.reset();
+            }
+        }
+
+        draw() {
+            ctx.save();
+            ctx.translate(this.x, this.y);
+            
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = this.color;
+
+            // TRAPEZOID SHAPE
+            const w = this.baseSize;
+            const h = this.baseSize * 1.4;
+
+            ctx.beginPath();
+            ctx.moveTo(-w/2, -h/2); 
+            ctx.lineTo(w/2, -h/2);  
+            ctx.lineTo(w/3, h/2);   
+            ctx.lineTo(-w/3, h/2);  
+            ctx.closePath();
+            
+            ctx.fillStyle = this.color;
+            ctx.fill();
+
+            // FLAME CORE
+            ctx.shadowBlur = 25;
+            ctx.shadowColor = "#ffcc00"; 
+            ctx.beginPath();
+            ctx.arc(0, h/4, w/4, 0, Math.PI * 2);
+            ctx.fillStyle = "#ffffcc"; 
+            ctx.fill();
+
+            ctx.restore();
+        }
+    }
+
+    for (let i = 0; i < VISUAL_COUNT; i++) {
+        particles.push(new Lantern());
+    }
+
+    function animate() {
+        ctx.clearRect(0, 0, width, height); 
+        particles.forEach(p => {
+            p.update();
+            p.draw();
+        });
+        animationId = requestAnimationFrame(animate);
+    }
+    animate();
+
+    // ==========================================
+    // LOGIC
+    // ==========================================
+    const sfxStorm = document.getElementById('sfx-storm');
+    const sfxBoom = document.getElementById('sfx-boom');
+
+    function startDraw() {
+        document.getElementById('ignite-btn').style.opacity = '0'; 
+        document.getElementById('ignite-btn').style.pointerEvents = 'none';
+        
+        // HIDE THE TITLE
+        document.getElementById('main-title').style.opacity = '0';
+
+        try {
+            sfxStorm.currentTime = 0;
+            sfxStorm.play();
+        } catch(e) {}
+
+        currentState = 'STORM';
+        
+        setTimeout(() => {
+            revealWinner();
+        }, 4000); 
+    }
+
+    function revealWinner() {
+        const winningNumber = Math.floor(Math.random() * TOTAL_PARTICIPANTS) + 1;
+
+        try {
+            sfxStorm.pause(); 
+            sfxBoom.currentTime = 0; 
+            sfxBoom.play();   
+        } catch(e) {}
+
+        const flash = document.getElementById('flash');
+        flash.style.opacity = '1';
+        setTimeout(() => { flash.style.opacity = '0'; }, 800);
+
+        currentState = 'IDLE'; 
+
+        const winnerScreen = document.getElementById('winner-screen');
+        const resultText = document.getElementById('result-text');
+        
+        resultText.innerText = winningNumber;
+        winnerScreen.classList.add('visible');
+    }
+
+    function resetDraw() {
+        document.getElementById('winner-screen').classList.remove('visible');
+        
+        const igniteBtn = document.getElementById('ignite-btn');
+        igniteBtn.style.opacity = '1';
+        igniteBtn.style.pointerEvents = 'auto';
+
+        // SHOW THE TITLE AGAIN
+        document.getElementById('main-title').style.opacity = '1';
+
+        currentState = 'IDLE';
+    }
+
+</script>
+</body>
+</html>
