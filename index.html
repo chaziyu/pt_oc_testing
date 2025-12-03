@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>马大灯笼节 - 幸运抽奖</title>
+    <title>马大灯笼节 (MAX HYPE)</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&family=Cinzel:wght@900&display=swap');
 
@@ -15,6 +15,12 @@
             color: white;
             user-select: none;
             cursor: crosshair; 
+            transition: background 0.5s; /* Smooth color shift */
+        }
+
+        /* TENSION MODE BACKGROUND */
+        body.tension-mode {
+            background: radial-gradient(circle at bottom, #500000 0%, #1a0505 100%); /* Redder/Darker */
         }
 
         #lantern-canvas {
@@ -22,67 +28,81 @@
             top: 0; left: 0; width: 100%; height: 100%; z-index: 1;
         }
 
-        /* --- UNIFIED OVERLAY CONTAINER --- */
-        /* This handles BOTH the Scramble and the Winner screen layouts */
+        /* --- GOD RAYS --- */
+        .god-rays {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            width: 150vmax; height: 150vmax;
+            background: repeating-conic-gradient(
+                rgba(255, 204, 0, 0.15) 0deg, 
+                rgba(255, 204, 0, 0.15) 20deg, 
+                transparent 20deg, 
+                transparent 40deg
+            );
+            animation: rotateRays 10s linear infinite;
+            z-index: -1; 
+            border-radius: 50%;
+            mask-image: radial-gradient(black, transparent 70%);
+            pointer-events: none;
+        }
+        @keyframes rotateRays { from { transform: translate(-50%, -50%) rotate(0deg); } to { transform: translate(-50%, -50%) rotate(360deg); } }
+
+        /* --- UNIFIED OVERLAY --- */
         .overlay-screen {
             position: fixed; 
-            top: 0; 
-            left: 0; 
-            width: 100vw; 
-            height: 100vh;
-            
-            /* FORCE CENTER ALIGNMENT */
+            top: 0; left: 0; width: 100vw; height: 100vh;
             display: flex;
             flex-direction: column;
             justify-content: center;
             align-items: center;
-
-            /* The "Final Page" Grey Background Style */
-            background: rgba(0, 0, 0, 0.7); 
-            backdrop-filter: blur(5px);
-            
+            background: rgba(0, 0, 0, 0.3); /* The Perfect Grey Tint */
+            backdrop-filter: blur(4px);
             z-index: 15; 
             opacity: 0;
             pointer-events: none;
-            transition: opacity 0.3s;
+            transition: opacity 0.2s;
         }
-        
-        /* Utility class to show the screen */
         .visible { opacity: 1 !important; pointer-events: auto !important; }
 
         /* --- SCRAMBLE TEXT --- */
         #scramble-text {
-            font-size: 180px; 
+            font-size: 220px; 
             font-weight: 900;
-            color: #ffcc00; /* Gold */
+            background: linear-gradient(to bottom, #fff, #ffcc00);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
             font-family: 'Cinzel', serif;
             line-height: 1; 
             text-align: center;
-            text-shadow: 0 0 30px rgba(255, 50, 50, 0.8);
+            filter: drop-shadow(0 0 40px rgba(255, 0, 0, 0.9));
+            will-change: transform;
         }
 
         /* --- WINNER TEXT --- */
         .winner-label {
             font-family: 'Ma Shan Zheng', cursive;
-            font-size: 80px; 
+            font-size: 90px; 
             color: #ffcc00;
-            text-shadow: 0 0 40px #ff0000;
+            text-shadow: 0 0 50px #ff0000;
             letter-spacing: 10px;
-            margin-bottom: 20px;
+            margin-bottom: 10px;
         }
         .winner-number {
-            font-size: 200px; 
+            font-size: 250px; 
             font-weight: 900;
             color: #fff;
-            text-shadow: 0 0 10px #ffcc00, 0 0 30px #ffcc00, 0 0 80px #ff0000;
+            text-shadow: 0 0 10px #ffcc00, 0 0 30px #ffcc00, 0 0 100px #ff0000;
             line-height: 1; 
         }
         
-        /* Pop Animation for Winner */
-        .number-pop { animation: popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
-        @keyframes popIn {
-            0% { transform: scale(3); opacity: 0; }
-            100% { transform: scale(1); opacity: 1; }
+        /* SUPERNOVA SLAM ANIMATION */
+        .number-pop { animation: superSlam 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+        @keyframes superSlam {
+            0% { transform: scale(10); opacity: 0; filter: blur(20px); }
+            50% { opacity: 1; filter: blur(0px); }
+            80% { transform: scale(0.9); }
+            100% { transform: scale(1); }
         }
 
         /* --- MAIN TITLE --- */
@@ -126,10 +146,10 @@
             transition: all 0.2s ease; text-shadow: 2px 2px 0px #500000;
             animation: heartbeat 1.5s infinite;
         }
-        button:hover { transform: scale(1.1); box-shadow: 0 0 60px #ffcc00; }
+        button:hover { transform: scale(1.1); box-shadow: 0 0 80px #ffcc00; }
         @keyframes heartbeat {
             0% { transform: scale(1); }
-            50% { transform: scale(1.05); box-shadow: 0 0 40px rgba(255, 204, 0, 0.8); }
+            50% { transform: scale(1.05); box-shadow: 0 0 50px rgba(255, 204, 0, 0.8); }
             100% { transform: scale(1); }
         }
 
@@ -138,18 +158,6 @@
             background: white; z-index: 100; pointer-events: none; opacity: 0;
             transition: opacity 0.1s; mix-blend-mode: overlay;
         }
-
-        /* God Rays for Winner */
-        .god-rays {
-            position: absolute; width: 150vh; height: 150vh;
-            background: repeating-conic-gradient(
-                rgba(255, 204, 0, 0.1) 0deg, rgba(255, 204, 0, 0.1) 20deg, 
-                transparent 20deg, transparent 40deg
-            );
-            animation: rotateRays 20s linear infinite; z-index: -1; 
-            border-radius: 50%; mask-image: radial-gradient(black, transparent 70%);
-        }
-        @keyframes rotateRays { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 
     </style>
 </head>
@@ -162,6 +170,7 @@
     <canvas id="lantern-canvas"></canvas>
 
     <div id="scramble-screen" class="overlay-screen">
+        <div class="god-rays"></div> 
         <div id="scramble-text">000</div>
     </div>
 
@@ -169,7 +178,7 @@
         <div class="god-rays"></div> 
         <div class="winner-label">✨ 天选之人 ✨</div>
         <div class="winner-number" id="result-text">---</div>
-        <button style="margin-top: 60px; font-size: 30px; padding: 15px 60px;" onclick="resetDraw()">下一位</button>
+        <button style="margin-top: 60px; font-size: 30px; padding: 15px 60px;" onclick="resetDraw()">下一位 (Next)</button>
         <canvas id="firework-canvas" style="position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none;"></canvas>
     </div>
 
@@ -196,7 +205,7 @@
     const ctx = canvas.getContext('2d');
     let width, height;
     let particles = [];
-    const VISUAL_COUNT = 120;
+    const VISUAL_COUNT = 150;
     let currentState = 'IDLE'; 
 
     function resize() { width = canvas.width = window.innerWidth; height = canvas.height = window.innerHeight; }
@@ -216,15 +225,14 @@
         update() {
             let targetSpeed = this.baseSpeed;
             
-            // Mouse Repel
             if (currentState === 'IDLE') {
                 const dx = this.x - mouseX; const dy = this.y - mouseY;
                 if (Math.sqrt(dx*dx + dy*dy) < 150) { this.x += dx * 0.05; this.y += dy * 0.05; }
             }
 
             if (currentState === 'STORM') {
-                targetSpeed = this.baseSpeed * 15; // Fast, but readable
-                if (this.speed < targetSpeed) this.speed += 0.5;
+                targetSpeed = this.baseSpeed * 45; // WARP SPEED
+                if (this.speed < targetSpeed) this.speed += 2.0;
             } else { 
                 if (this.speed > this.baseSpeed) this.speed *= 0.9; 
             }
@@ -237,21 +245,29 @@
         draw() {
             ctx.save(); ctx.translate(this.x, this.y);
             
-            // DRAW NORMAL LANTERN (NO STREAKS)
-            ctx.shadowBlur = 15; ctx.shadowColor = this.color;
-            const w = this.baseSize; const h = this.baseSize * 1.4;
-            ctx.beginPath(); ctx.moveTo(-w/2, -h/2); ctx.lineTo(w/2, -h/2);  
-            ctx.lineTo(w/3, h/2); ctx.lineTo(-w/3, h/2); ctx.closePath();
-            ctx.fillStyle = this.color; ctx.fill();
-            
-            // Flame
-            ctx.shadowBlur = 25; ctx.shadowColor = "#ffcc00"; 
-            ctx.beginPath(); ctx.arc(0, h/4, w/4, 0, Math.PI * 2); ctx.fillStyle = "#ffffcc"; ctx.fill();
+            if (currentState === 'STORM') {
+                // WARP STREAK EFFECT
+                ctx.beginPath();
+                ctx.fillStyle = this.color;
+                ctx.shadowBlur = 20; ctx.shadowColor = this.color;
+                // Draw Streak
+                ctx.fillRect(-this.baseSize/4, 0, this.baseSize/2, this.speed * 3);
+                ctx.fill();
+            } else {
+                // NORMAL SHAPE
+                ctx.shadowBlur = 15; ctx.shadowColor = this.color;
+                const w = this.baseSize; const h = this.baseSize * 1.4;
+                ctx.beginPath(); ctx.moveTo(-w/2, -h/2); ctx.lineTo(w/2, -h/2);  
+                ctx.lineTo(w/3, h/2); ctx.lineTo(-w/3, h/2); ctx.closePath();
+                ctx.fillStyle = this.color; ctx.fill();
+                // Flame
+                ctx.shadowBlur = 25; ctx.shadowColor = "#ffcc00"; 
+                ctx.beginPath(); ctx.arc(0, h/4, w/4, 0, Math.PI * 2); ctx.fillStyle = "#ffffcc"; ctx.fill();
+            }
             ctx.restore();
         }
     }
     for (let i=0; i<VISUAL_COUNT; i++) particles.push(new Lantern());
-    
     function animate() {
         ctx.clearRect(0, 0, width, height); 
         particles.forEach(p => { p.update(); p.draw(); });
@@ -259,33 +275,66 @@
     }
     animate();
 
-    // --- FIREWORKS ---
+    // --- FIREWORKS & CONFETTI SYSTEM ---
     const fwCanvas = document.getElementById('firework-canvas');
     const fwCtx = fwCanvas.getContext('2d');
     let fireworks = [];
+    let confetti = [];
+
     function resizeFW() { fwCanvas.width = window.innerWidth; fwCanvas.height = window.innerHeight; }
     window.addEventListener('resize', resizeFW); resizeFW();
 
+    // Firework Logic
     function createExplosion(x, y) {
         const colors = ['#ff0000', '#ffcc00', '#ffffff', '#ffaa00'];
-        for (let i = 0; i < 30; i++) {
+        for (let i = 0; i < 40; i++) {
             fireworks.push({
-                x: x, y: y, vx: (Math.random() - 0.5) * 15, vy: (Math.random() - 0.5) * 15,
+                x: x, y: y, vx: (Math.random() - 0.5) * 20, vy: (Math.random() - 0.5) * 20,
                 life: 1.0, color: colors[Math.floor(Math.random() * colors.length)]
             });
         }
     }
-    function animateFireworks() {
+
+    // Confetti Logic (Golden Rain)
+    function createConfetti() {
+        for(let i=0; i<100; i++) {
+            confetti.push({
+                x: Math.random() * fwCanvas.width,
+                y: -10 - Math.random() * 100,
+                vx: (Math.random() - 0.5) * 2,
+                vy: Math.random() * 5 + 2,
+                size: Math.random() * 5 + 2,
+                color: '#ffcc00',
+                wobble: Math.random() * Math.PI
+            });
+        }
+    }
+
+    function animateFX() {
         fwCtx.clearRect(0, 0, fwCanvas.width, fwCanvas.height);
-        fireworks.forEach((p, index) => {
+        
+        // Update Fireworks
+        for(let i = fireworks.length - 1; i >= 0; i--) {
+            let p = fireworks[i];
             p.x += p.vx; p.y += p.vy; p.vy += 0.2; p.life -= 0.02;
             fwCtx.globalAlpha = p.life; fwCtx.fillStyle = p.color;
-            fwCtx.beginPath(); fwCtx.arc(p.x, p.y, 5, 0, Math.PI*2); fwCtx.fill();
-            if(p.life <= 0) fireworks.splice(index, 1);
-        });
-        requestAnimationFrame(animateFireworks);
+            fwCtx.beginPath(); fwCtx.arc(p.x, p.y, 4, 0, Math.PI*2); fwCtx.fill();
+            if(p.life <= 0) fireworks.splice(i, 1);
+        }
+
+        // Update Confetti
+        fwCtx.globalAlpha = 1;
+        for(let i = confetti.length - 1; i >= 0; i--) {
+            let c = confetti[i];
+            c.y += c.vy; c.x += Math.sin(c.wobble) * 2; c.wobble += 0.1;
+            fwCtx.fillStyle = c.color;
+            fwCtx.fillRect(c.x, c.y, c.size, c.size);
+            if(c.y > fwCanvas.height) confetti.splice(i, 1);
+        }
+
+        requestAnimationFrame(animateFX);
     }
-    animateFireworks();
+    animateFX();
 
     // --- LOGIC ---
     const sfxStorm = document.getElementById('sfx-storm');
@@ -299,28 +348,29 @@
     let scrambleInterval; let startTime;
 
     function startDraw() {
-        // UI Updates
         document.getElementById('ignite-btn').style.opacity = '0'; 
         document.getElementById('ignite-btn').style.pointerEvents = 'none';
         document.getElementById('main-title').style.opacity = '0';
         document.getElementById('main-title').style.transform = 'translate(-50%, -50%) scale(0.5)'; 
+        
+        // TENSION MODE BG
+        document.body.classList.add('tension-mode');
 
         try { sfxStorm.currentTime = 0; sfxStorm.play(); } catch(e){}
 
         currentState = 'STORM';
-        
-        // SHOW SCRAMBLE SCREEN
         scrambleScreen.classList.add('visible');
 
         startTime = Date.now();
         scrambleInterval = setInterval(() => {
             scrambleText.innerText = Math.floor(Math.random() * TOTAL_PARTICIPANTS) + 1;
-            // Pulse Effect on Text
-            let elapsed = Date.now() - startTime;
-            let progress = elapsed / DRAW_DURATION;
-            let scale = 1 + (progress * 0.2); // Grow slightly
-            scrambleText.style.transform = `scale(${scale})`;
-        }, 50); 
+            
+            // GLITCH EFFECT
+            let offsetX = (Math.random() - 0.5) * 20;
+            let offsetY = (Math.random() - 0.5) * 20;
+            scrambleText.style.transform = `translate(${offsetX}px, ${offsetY}px)`;
+            
+        }, 40); 
 
         setTimeout(() => { revealWinner(); }, DRAW_DURATION); 
     }
@@ -329,8 +379,8 @@
         const winningNumber = Math.floor(Math.random() * TOTAL_PARTICIPANTS) + 1;
         clearInterval(scrambleInterval); 
         
-        // HIDE SCRAMBLE SCREEN, SHOW WINNER SCREEN
         scrambleScreen.classList.remove('visible');
+        document.body.classList.remove('tension-mode');
         
         try { sfxStorm.pause(); sfxBoom.currentTime = 0; sfxBoom.play(); } catch(e){}
 
@@ -344,22 +394,21 @@
         resultText.classList.remove('number-pop');
         void resultText.offsetWidth; resultText.classList.add('number-pop');
 
+        // TRIGGER BIG EXPLOSIONS
         createExplosion(window.innerWidth/2, window.innerHeight/2);
-        setTimeout(() => createExplosion(window.innerWidth/2 - 200, window.innerHeight/2 - 100), 200);
-        setTimeout(() => createExplosion(window.innerWidth/2 + 200, window.innerHeight/2 + 100), 400);
+        createConfetti(); // START RAIN
+        setTimeout(() => { createExplosion(window.innerWidth/2 - 300, window.innerHeight/2); createConfetti(); }, 200);
+        setTimeout(() => { createExplosion(window.innerWidth/2 + 300, window.innerHeight/2); createConfetti(); }, 400);
     }
 
     function resetDraw() {
         winnerScreen.classList.remove('visible');
-        
         const igniteBtn = document.getElementById('ignite-btn');
         igniteBtn.style.opacity = '1';
         igniteBtn.style.pointerEvents = 'auto';
-        
         const title = document.getElementById('main-title');
         title.style.opacity = '1';
         title.style.transform = 'translate(-50%, -50%) scale(1)';
-        
         currentState = 'IDLE';
     }
 </script>
