@@ -60,6 +60,22 @@
             }
         }
 
+        .god-rays.pulsing {
+            animation: rotateRays 60s linear infinite, rayPulse 2s ease-in-out infinite alternate;
+        }
+
+        @keyframes rayPulse {
+            0% {
+                opacity: 0.3;
+                filter: brightness(1.0);
+            }
+
+            100% {
+                opacity: 0.8;
+                filter: brightness(1.5);
+            }
+        }
+
         /* --- LAYER 2: LANTERNS (DYNAMIC) --- */
         #lantern-canvas {
             position: absolute;
@@ -233,9 +249,9 @@
 
         @keyframes superSlam {
             0% {
-                transform: scale(3);
+                transform: scale(2.0);
                 opacity: 0;
-                filter: blur(20px);
+                filter: blur(10px);
             }
 
             100% {
@@ -312,7 +328,7 @@
             z-index: 100;
             pointer-events: none;
             opacity: 0;
-            transition: opacity 0.05s;
+            transition: opacity 0.8s ease-out;
             mix-blend-mode: overlay;
         }
     </style>
@@ -360,8 +376,8 @@
             lanternCount: 65,
             baseSpeed: 1.5,
             stormMaxSpeed: 30.0,
-            fireworksCount: 80,
-            confettiCount: 150
+            fireworksCount: 50, // Reduced from 80
+            confettiCount: 50   // Reduced from 150
         };
 
         const State = {
@@ -369,11 +385,15 @@
             width: 0,
             height: 0,
             globalSpeedMultiplier: 1.0,
-            lastTime: 0
+            lastTime: 0,
+            drumrollActive: false,
+            lastDrumrollTime: 0
         };
 
         // --- ASSETS ---
         const lanternCache = [];
+        const particleCache = []; // NEW: Sprite Cache for GPU Blitting
+
         function preRenderLanterns() {
             const cacheCount = 12;
             for (let i = 0; i < cacheCount; i++) {
@@ -404,6 +424,39 @@
             }
         }
 
+        function preRenderParticles() {
+            // Generate sprites for Red/Gold spectrum
+            // Hues: 0-20 (Red) and 40-60 (Yellow/Gold)
+            const hues = [];
+            for (let i = 0; i <= 20; i += 2) hues.push(i);
+            for (let i = 40; i <= 60; i += 2) hues.push(i);
+
+            hues.forEach(hue => {
+                const size = 16; // Texture size (enough for max radius + glow)
+                const c = document.createElement('canvas');
+                c.width = size; c.height = size;
+                const ctx = c.getContext('2d');
+                const center = size / 2;
+                const radius = size * 0.25; // Base radius
+
+                // Outer Glow
+                const grad = ctx.createRadialGradient(center, center, 0, center, center, size / 2);
+                grad.addColorStop(0, `hsla(${hue}, 100%, 70%, 1)`);
+                grad.addColorStop(0.4, `hsla(${hue}, 100%, 50%, 0.8)`);
+                grad.addColorStop(1, `hsla(${hue}, 100%, 50%, 0)`);
+                ctx.fillStyle = grad;
+                ctx.fillRect(0, 0, size, size);
+
+                // White Core
+                ctx.beginPath();
+                ctx.arc(center, center, radius * 0.6, 0, Math.PI * 2);
+                ctx.fillStyle = "#fff";
+                ctx.fill();
+
+                particleCache.push({ img: c, size: size, hue: hue });
+            });
+        }
+
         // --- CLASSES ---
         class Lantern {
             constructor() {
@@ -418,30 +471,59 @@
                 this.sprite = lanternCache[Math.floor(Math.random() * lanternCache.length)];
                 this.swingPhase = Math.random() * Math.PI * 2;
                 this.swingSpeed = 0.02 + Math.random() * 0.02;
-                this.scale = 1.0 + Math.random() * 0.7;
+                this.scale = 0.9 + Math.random() * 0.5;
             }
             update(dt) {
-                const speed = this.baseSpeed * State.globalSpeedMultiplier * dt;
+                // Base upward movement
+                let speed = this.baseSpeed * State.globalSpeedMultiplier * dt;
+
+                // Storm Effect: Reverted (Standard movement)
                 this.y -= speed;
-                this.swingPhase += this.swingSpeed * dt;
-                this.x += Math.sin(this.swingPhase * 0.5) * 0.2 * dt;
+
+                if (State.mode === 'WINNER') {
+                    // Float up gently, no swing
+                    this.swingPhase += this.swingSpeed * 0.1 * dt;
+                } else {
+                    this.swingPhase += this.swingSpeed * dt;
+                    this.x += Math.sin(this.swingPhase * 0.5) * 0.2 * dt;
+                }
+
+                // Wrap around X
+                if (this.x > State.width + 50) this.x = -50;
                 if (this.y < -150) this.reset();
             }
             draw(ctx) {
-                ctx.save();
+                // Optimized: No save/restore (High Perf)
                 ctx.translate(this.x, this.y);
                 ctx.rotate(Math.sin(this.swingPhase) * 0.1);
                 ctx.scale(this.scale, this.scale);
                 ctx.drawImage(this.sprite.img, -this.sprite.width / 2, -this.sprite.height / 2);
-                ctx.restore();
+
+                // Reset Matrix directly
+                ctx.setTransform(1, 0, 0, 1, 0, 0);
             }
         }
 
         class Particle {
             constructor(x, y, isConfetti = false) {
+                this.init(x, y, isConfetti);
+            }
+
+            init(x, y, isConfetti) {
                 this.x = x; this.y = y;
                 this.isConfetti = isConfetti;
                 this.life = 1.0;
+
+                if (!isConfetti) {
+                    this.maxHistory = 8; // Power of 2 for Bitwise Masking
+                    if (!this.historyX) {
+                        this.historyX = new Float32Array(this.maxHistory);
+                        this.historyY = new Float32Array(this.maxHistory);
+                    }
+                    this.historyIdx = 0;
+                    this.historyLen = 0;
+                }
+
                 const angle = Math.random() * Math.PI * 2;
                 if (isConfetti) {
                     this.vx = (Math.random() - 0.5) * 5;
@@ -452,14 +534,33 @@
                     this.rotation = Math.random() * Math.PI;
                     this.rotationSpeed = (Math.random() - 0.5) * 0.2;
                 } else {
-                    const speed = Math.random() * 15 + 5;
-                    this.vx = Math.cos(angle) * speed; this.vy = Math.sin(angle) * speed;
-                    this.drag = 0.96; this.gravity = 0.03; this.decay = Math.random() * 0.015 + 0.005;
-                    this.size = Math.random() * 4 + 2;
-                    this.color = `hsl(${Math.random() * 50}, 100%, 85%)`;
+                    // Firework Spark
+                    const speed = Math.random() * 18 + 12; // Bigger burst radius
+                    this.vx = Math.cos(angle) * speed;
+                    this.vy = Math.sin(angle) * speed;
+                    this.drag = 0.92; // Higher drag for air resistance
+                    this.gravity = 0.15; // Heavier gravity for arc
+                    this.decay = Math.random() * 0.015 + 0.01;
+
+                    // Select sprite from cache
+                    this.sprite = particleCache[Math.floor(Math.random() * particleCache.length)];
+                    this.size = this.sprite.size * (0.8 + Math.random() * 0.4); // Variation
+
+                    // Optimization: Use solid HSL and let globalAlpha handle opacity
+                    this.color = `hsl(${this.sprite.hue}, 100%, 70%)`;
                 }
             }
+
             update(dt) {
+                // Save position for trail (Ring Buffer Write)
+                if (!this.isConfetti) {
+                    this.historyX[this.historyIdx] = this.x;
+                    this.historyY[this.historyIdx] = this.y;
+                    // Optimized: Bitwise Masking (Requires maxHistory to be Power of 2)
+                    this.historyIdx = (this.historyIdx + 1) & 7; // & (maxHistory - 1)
+                    if (this.historyLen < this.maxHistory) this.historyLen++;
+                }
+
                 this.x += this.vx * dt; this.y += this.vy * dt;
                 this.vx *= this.drag; this.vy *= this.drag; this.vy += this.gravity * dt;
                 this.life -= this.decay * dt;
@@ -467,21 +568,52 @@
             }
             draw(ctx) {
                 const alpha = Math.max(0, this.life);
-                ctx.fillStyle = this.color;
+
+                // Common alpha for both types
+                ctx.globalAlpha = alpha;
 
                 if (this.isConfetti) {
-                    ctx.globalAlpha = alpha;
-                    ctx.save(); ctx.translate(this.x, this.y); ctx.rotate(this.rotation);
-                    ctx.fillRect(-this.size / 2, -this.size / 2, this.size, this.size);
-                    ctx.restore();
-                } else {
-                    // Optimized Glow (Fake Shadow)
-                    ctx.globalAlpha = alpha * 0.4;
-                    ctx.beginPath(); ctx.arc(this.x, this.y, this.size * 4, 0, Math.PI * 2); ctx.fill();
+                    ctx.fillStyle = this.color;
 
-                    // Core
-                    ctx.globalAlpha = alpha;
-                    ctx.beginPath(); ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2); ctx.fill();
+                    // Optimization: Manual Matrix Math (Avoids internal matrix multiplication overhead)
+                    // setTransform(a, b, c, d, e, f) -> (cos, sin, -sin, cos, x, y)
+                    const c = Math.cos(this.rotation);
+                    const s = Math.sin(this.rotation);
+
+                    // x|0 and y|0 for integer snapping
+                    ctx.setTransform(c, s, -s, c, (this.x | 0), (this.y | 0));
+
+                    ctx.fillRect(-this.size / 2, -this.size / 2, this.size, this.size);
+
+                    // Reset Matrix (Identity)
+                    ctx.setTransform(1, 0, 0, 1, 0, 0);
+                } else {
+                    // Draw Trail from Ring Buffer
+                    if (this.historyLen > 1) {
+                        ctx.beginPath();
+                        // Optimized: Bitwise Masking for finding start index
+                        let startIdx = (this.historyIdx - this.historyLen + 8) & 7;
+                        ctx.moveTo((this.historyX[startIdx] | 0), (this.historyY[startIdx] | 0));
+
+                        for (let i = 1; i < this.historyLen; i++) {
+                            let currIdx = (startIdx + i) & 7;
+                            ctx.lineTo((this.historyX[currIdx] | 0), (this.historyY[currIdx] | 0));
+                        }
+                        ctx.lineTo((this.x | 0), (this.y | 0));
+
+                        // Optimized: lineCap is set globally in resize()
+                        ctx.lineWidth = this.size * 0.15; // Thinner trail than head
+
+                        // Optimized: No string manipulation, just set color
+                        ctx.strokeStyle = this.color;
+                        ctx.stroke();
+                    }
+
+                    // Draw Sprite Head (GPU Blit)
+                    // Alpha is already set by ctx.globalAlpha above
+                    const offset = this.size / 2;
+                    // Rounding here creates crisp edges and saves anti-aliasing work
+                    ctx.drawImage(this.sprite.img, (this.x - offset) | 0, (this.y - offset) | 0, this.size, this.size);
                 }
                 ctx.globalAlpha = 1.0;
             }
@@ -495,11 +627,13 @@
         const fCtx = fCanvas.getContext('2d');
 
         const lanterns = [];
-        let particles = [];
+        const particles = [];
+        const particlePool = []; // Object Pool
 
         function init() {
             resize();
             preRenderLanterns();
+            preRenderParticles(); // NEW
             for (let i = 0; i < Config.lanternCount; i++) lanterns.push(new Lantern());
             requestAnimationFrame(loop);
         }
@@ -509,6 +643,13 @@
             State.height = window.innerHeight;
             lCanvas.width = State.width; lCanvas.height = State.height;
             fCanvas.width = State.width; fCanvas.height = State.height;
+
+            // Optimization: Set Composite Operation ONCE (State persists until resize)
+            lCtx.globalCompositeOperation = 'lighter';
+            fCtx.globalCompositeOperation = 'lighter';
+
+            // Optimization: Set Line Cap ONCE (All fireworks use round)
+            fCtx.lineCap = 'round';
         }
         window.addEventListener('resize', resize);
 
@@ -518,24 +659,56 @@
             State.lastTime = timestamp;
             const dt = Math.min(deltaTime, 3.0);
 
-            const targetMultiplier = (State.mode === 'STORM') ? Config.stormMaxSpeed : 1.0;
+            let targetMultiplier = 1.0;
+            if (State.mode === 'STORM') targetMultiplier = Config.stormMaxSpeed;
+            if (State.mode === 'WINNER') targetMultiplier = 0.5; // Slow motion ascent
+
             State.globalSpeedMultiplier += (targetMultiplier - State.globalSpeedMultiplier) * 0.05 * dt;
 
-            lCtx.clearRect(0, 0, State.width, State.height);
-            fCtx.clearRect(0, 0, State.width, State.height);
+            // Optimized: Cache Screen Dimensions
+            const width = State.width;
+            const height = State.height;
 
-            lCtx.globalCompositeOperation = 'lighter';
+            lCtx.clearRect(0, 0, width, height);
+            // fCtx clearing moved to conditional block below
+
             for (let i = 0; i < lanterns.length; i++) {
                 lanterns[i].update(dt);
                 lanterns[i].draw(lCtx);
             }
 
-            fCtx.globalCompositeOperation = 'lighter';
-            for (let i = particles.length - 1; i >= 0; i--) {
-                const p = particles[i];
-                p.update(dt);
-                p.draw(fCtx);
-                if (p.life <= 0) particles.splice(i, 1);
+            // Optimization: Only render firework layer if there are particles
+            // This effectively pauses the GPU rasterization for this layer when idle
+            if (particles.length > 0) {
+                fCtx.clearRect(0, 0, width, height);
+
+                // Optimized Loop with Swap-and-Pop + Pooling
+                let i = 0;
+                while (i < particles.length) {
+                    const p = particles[i];
+                    p.update(dt);
+                    p.draw(fCtx);
+                    if (p.life <= 0) {
+                        // Recycle to Pool
+                        particlePool.push(p);
+
+                        // Swap with last element and pop (O(1) removal)
+                        particles[i] = particles[particles.length - 1];
+                        particles.pop();
+                        // Do NOT increment i, re-check this new index
+                    } else {
+                        i++;
+                    }
+                }
+            }
+
+            // --- SYNCED DOM UPDATES (No Layout Thrashing) ---
+            if (State.drumrollActive) {
+                if (timestamp - State.lastDrumrollTime > 50) { // 50ms interval
+                    const r = Math.floor(Math.random() * Config.totalParticipants) + 1;
+                    els.scrambleText.textContent = r;
+                    State.lastDrumrollTime = timestamp;
+                }
             }
 
             requestAnimationFrame(loop);
@@ -554,7 +727,8 @@
             resultText: document.getElementById('result-text'),
             igniteBtn: document.getElementById('ignite-btn'),
             title: document.getElementById('main-title'),
-            flash: document.getElementById('flash')
+            flash: document.getElementById('flash'),
+            godRays: document.querySelector('.god-rays')
         };
 
         function startDraw() {
@@ -568,15 +742,14 @@
             State.mode = 'STORM';
 
             // Show Glass + Scramble
+            els.godRays.classList.add('pulsing');
             els.glass.classList.add('visible');
             els.scrambleScreen.classList.add('visible');
             els.scrambleScreen.classList.add('scrambling');
 
-            clearInterval(scrambleInterval);
-            scrambleInterval = setInterval(() => {
-                const r = Math.floor(Math.random() * Config.totalParticipants) + 1;
-                els.scrambleText.innerText = r;
-            }, 50);
+            // Start Drumroll loop (Synced with Render Loop)
+            State.drumrollActive = true;
+            State.lastDrumrollTime = 0;
 
             setTimeout(revealWinner, Config.drawDuration);
         }
@@ -588,33 +761,43 @@
         }
 
         function revealWinner() {
-            clearInterval(scrambleInterval);
+            // Stop Drumroll
+            State.drumrollActive = false;
+
             const winningNumber = getSecureRandomNumber(Config.totalParticipants);
 
-            // Switch screens
+            // 1. Fade out scramble first
             els.scrambleScreen.classList.remove('visible');
             els.scrambleScreen.classList.remove('scrambling');
 
+            // 2. Play sound and Flash
             try { sfxStorm.pause(); sfxBoom.currentTime = 0; sfxBoom.play(); } catch (e) { }
 
-            els.flash.style.opacity = '0.8';
-            setTimeout(() => { els.flash.style.opacity = '0'; }, 100);
+            els.flash.style.opacity = '1';
+            // 3. Reveal winner inside the flash
+            setTimeout(() => {
+                els.godRays.classList.remove('pulsing');
 
-            State.mode = 'IDLE';
+                // Fade out flash slowly
+                els.flash.style.opacity = '0';
 
-            // Set Body Class for Z-Index change
-            document.body.classList.add('winner-revealed');
+                State.mode = 'WINNER';
 
-            els.resultText.innerText = winningNumber;
-            els.winnerScreen.classList.add('visible');
+                // Set Body Class for Z-Index change
+                document.body.classList.add('winner-revealed');
 
-            els.resultText.classList.remove('number-pop');
-            void els.resultText.offsetWidth;
-            els.resultText.classList.add('number-pop');
+                els.resultText.innerText = winningNumber;
+                els.winnerScreen.classList.add('visible');
 
-            spawnExplosion(State.width / 2, State.height / 2, true);
-            setTimeout(() => spawnExplosion(State.width / 2 - 300, State.height / 2, false), 200);
-            setTimeout(() => spawnExplosion(State.width / 2 + 300, State.height / 2, false), 400);
+                els.resultText.classList.remove('number-pop');
+                void els.resultText.offsetWidth;
+                els.resultText.classList.add('number-pop');
+
+                spawnExplosion(State.width / 2, State.height / 2, true);
+                setTimeout(() => spawnExplosion(State.width / 2 - 300, State.height / 2, false), 200);
+                setTimeout(() => spawnExplosion(State.width / 2 + 300, State.height / 2, false), 400);
+
+            }, 300); // Wait 300ms (during whiteout) to switch
         }
 
         function resetDraw() {
@@ -632,12 +815,23 @@
         }
 
         function spawnExplosion(x, y, includeConfetti) {
+            function spawn(isConfetti) {
+                let p;
+                if (particlePool.length > 0) {
+                    p = particlePool.pop();
+                    p.init(x, y, isConfetti);
+                } else {
+                    p = new Particle(x, y, isConfetti);
+                }
+                particles.push(p);
+            }
+
             for (let i = 0; i < Config.fireworksCount; i++) {
-                particles.push(new Particle(x, y, false));
+                spawn(false);
             }
             if (includeConfetti) {
                 for (let i = 0; i < Config.confettiCount; i++) {
-                    particles.push(new Particle(x, y, true));
+                    spawn(true);
                 }
             }
         }
