@@ -356,8 +356,8 @@
     <script>
         const Config = {
             totalParticipants: 450,
-            drawDuration: 4500,
-            lanternCount: 72,
+            drawDuration: 4000,
+            lanternCount: 65,
             baseSpeed: 1.5,
             stormMaxSpeed: 30.0,
             fireworksCount: 80,
@@ -377,7 +377,7 @@
         function preRenderLanterns() {
             const cacheCount = 12;
             for (let i = 0; i < cacheCount; i++) {
-                const size = 40 + Math.random() * 25;
+                const size = 42 + Math.random() * 26.25;
                 const c = document.createElement('canvas');
                 c.width = size * 3; c.height = size * 4;
                 const ctx = c.getContext('2d');
@@ -418,7 +418,7 @@
                 this.sprite = lanternCache[Math.floor(Math.random() * lanternCache.length)];
                 this.swingPhase = Math.random() * Math.PI * 2;
                 this.swingSpeed = 0.02 + Math.random() * 0.02;
-                this.scale = 0.8 + Math.random() * 0.4;
+                this.scale = 1.0 + Math.random() * 0.7;
             }
             update(dt) {
                 const speed = this.baseSpeed * State.globalSpeedMultiplier * dt;
